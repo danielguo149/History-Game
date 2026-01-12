@@ -10,45 +10,45 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
-// Google Gemini API call function
-async function callGemini(systemPrompt, userPrompt) {
-    const model = 'gemini-2.0-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+// DeepSeek API call function (OpenAI-compatible)
+async function callDeepSeek(systemPrompt, userPrompt) {
+    console.log('Calling DeepSeek API...');
 
-    console.log('Calling Gemini API...');
-
-    const response = await fetch(url, {
+    const response = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+        },
         body: JSON.stringify({
-            contents: [{
-                parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-            }],
-            generationConfig: {
-                temperature: 0.9,
-                maxOutputTokens: 2000
-            }
+            model: 'deepseek-chat',
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.9,
+            max_tokens: 2000
         })
     });
 
     const responseText = await response.text();
 
     if (!response.ok) {
-        console.error('Gemini API error response:', responseText);
-        throw new Error(`Gemini API error (${response.status}): ${responseText}`);
+        console.error('DeepSeek API error response:', responseText);
+        throw new Error(`DeepSeek API error (${response.status}): ${responseText}`);
     }
 
     const data = JSON.parse(responseText);
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-        console.error('Unexpected Gemini response structure:', JSON.stringify(data, null, 2));
-        throw new Error('Unexpected response structure from Gemini API');
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('Unexpected DeepSeek response structure:', JSON.stringify(data, null, 2));
+        throw new Error('Unexpected response structure from DeepSeek API');
     }
 
-    console.log('Gemini API response received successfully');
-    return data.candidates[0].content.parts[0].text;
+    console.log('DeepSeek API response received successfully');
+    return data.choices[0].message.content;
 }
 
 // Parse JSON from AI response (handles markdown code blocks)
@@ -132,7 +132,7 @@ Respond in this exact JSON format:
 
 Only ONE choice should have isHistorical: true. All four choices should seem equally reasonable given the circumstances - make it genuinely difficult to guess which one is correct!`;
 
-        const responseText = await callGemini(systemPrompt, userPrompt);
+        const responseText = await callDeepSeek(systemPrompt, userPrompt);
         const scenario = parseAIResponse(responseText);
         res.json(scenario);
 
@@ -177,7 +177,7 @@ Generate a response in this exact JSON format:
 
 Make both outcomes engaging and educational. The alternate history should be plausible based on the actual historical circumstances.`;
 
-        const responseText = await callGemini(systemPrompt, userPrompt);
+        const responseText = await callDeepSeek(systemPrompt, userPrompt);
         const outcome = parseAIResponse(responseText);
         res.json(outcome);
 
@@ -192,15 +192,15 @@ Make both outcomes engaging and educational. The alternate history should be pla
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', apiConfigured: !!GEMINI_API_KEY });
+    res.json({ status: 'ok', apiConfigured: !!DEEPSEEK_API_KEY });
 });
 
 app.listen(PORT, () => {
     console.log(`\n🏛️  Crossroads of History server running on port ${PORT}`);
     console.log(`   Open http://localhost:${PORT} in your browser\n`);
-    if (!GEMINI_API_KEY) {
-        console.warn('⚠️  Warning: GOOGLE_API_KEY not set in .env file\n');
+    if (!DEEPSEEK_API_KEY) {
+        console.warn('⚠️  Warning: DEEPSEEK_API_KEY not set in .env file\n');
     } else {
-        console.log('✅ Gemini API key configured\n');
+        console.log('✅ DeepSeek API key configured\n');
     }
 });
