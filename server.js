@@ -14,7 +14,7 @@ const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 
 // Google Gemini API call function
 async function callGemini(systemPrompt, userPrompt) {
-    const model = 'gemini-1.5-flash';
+    const model = 'gemini-2.0-flash';
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
 
     console.log('Calling Gemini API...');
