@@ -169,10 +169,10 @@ Historical fact: ${scenario.historicalFact}
 Generate a response in this exact JSON format:
 {
     "matchedHistory": ${isHistoricalChoice},
-    "whatActuallyHappened": "2-3 paragraphs describing what ${scenario.leader} actually did and the real historical consequences - make it vivid and interesting",
-    "alternateHistory": "2-3 paragraphs of plausible alternate history - what likely would have happened if the ${isHistoricalChoice ? 'other choice' : "player's choice"} had been made. Be specific about potential consequences, consider butterfly effects, and make it thought-provoking",
+    "whatActuallyHappened": "1-2 paragraphs describing what ${scenario.leader} actually did and the real historical consequences - make it vivid and interesting",
+    "alternateHistory": "1-2 paragraphs of plausible alternate history - what likely would have happened if the ${isHistoricalChoice ? 'other choice' : "player's choice"} had been made. Be specific about potential consequences, consider butterfly effects, and make it thought-provoking",
     "funFact": "one fascinating lesser-known fact about this historical moment or person",
-    "lessonsLearned": "what this moment teaches us about leadership, decision-making, or human nature"
+    "lessonsLearned": "what this moment teaches us about leadership, decision-making, or human nature. Make sure it's not too complicated."
 }
 
 Make both outcomes engaging and educational. The alternate history should be plausible based on the actual historical circumstances.`;
