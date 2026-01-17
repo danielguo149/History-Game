@@ -11,6 +11,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 
 const SCENARIO_CACHE_SIZE = 6;
 const scenarioCache = new Map();
@@ -28,7 +29,7 @@ async function callDeepSeek(systemPrompt, userPrompt, options = {}) {
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
         },
         body: JSON.stringify({
-            model: 'deepseek-chat',
+            model: DEEPSEEK_MODEL,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
