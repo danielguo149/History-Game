@@ -744,6 +744,8 @@
             totalRounds: 5,
             score: 0,
             previousLeaders: [],
+            previousEventKeys: [],
+            previousEventSummaries: [],
             history: [],
             language: 'en'
         };
@@ -930,6 +932,8 @@
             gameState.roundNumber = 0;
             gameState.score = 0;
             gameState.previousLeaders = [];
+            gameState.previousEventKeys = [];
+            gameState.previousEventSummaries = [];
             gameState.history = [];
 
             showScreen('game');
@@ -963,6 +967,8 @@
                     body: JSON.stringify({
                         era: gameState.selectedEra,
                         previousLeaders: gameState.previousLeaders,
+                        previousEventKeys: gameState.previousEventKeys,
+                        previousEventSummaries: gameState.previousEventSummaries,
                         language: gameState.language,
                         customEra,
                         customContext
@@ -977,6 +983,10 @@
                 const scenario = await response.json();
                 gameState.currentScenario = scenario;
                 gameState.previousLeaders.push(scenario.leader);
+                const eventKey = `${scenario.leader}||${scenario.era}||${scenario.dilemma}`;
+                const eventSummary = `${scenario.leader} — ${scenario.era} — ${scenario.dilemma}`;
+                gameState.previousEventKeys.push(eventKey);
+                gameState.previousEventSummaries.push(eventSummary);
 
                 displayScenario(scenario);
             } catch (error) {

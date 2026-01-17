@@ -81,6 +81,10 @@ function parseAIResponse(responseText) {
     }
 }
 
+function scenarioKey(scenario) {
+    return `${scenario.leader}||${scenario.era}||${scenario.dilemma}`;
+}
+
 function getScenarioCacheKey(era, language) {
     return `${era || 'all'}::${language || 'en'}`;
 }
@@ -109,13 +113,16 @@ function resolveEraDescription(era, customEra) {
     return eraPrompts[era] || eraPrompts.all;
 }
 
-function buildScenarioPrompts({ era, previousLeaders, language, customEra, customContext }) {
+function buildScenarioPrompts({ era, previousLeaders, language, customEra, customContext, previousEventSummaries }) {
     const eraDescription = resolveEraDescription(era, customEra);
     const excludeList = previousLeaders.length > 0
         ? `Do NOT use any of these leaders who have already appeared: ${previousLeaders.join(', ')}.`
         : '';
     const customContextNote = customContext && customContext.trim()
         ? `Player-provided historical context to weave in: ${customContext.trim()}`
+        : '';
+    const previousEventsNote = previousEventSummaries && previousEventSummaries.length > 0
+        ? `Do NOT repeat any of these historical situations: ${previousEventSummaries.join(' | ')}`
         : '';
 
     const languageNote = language === 'zh'
@@ -135,6 +142,7 @@ Time Period: ${eraDescription}
 ${excludeList}
 ${languageNote}
 ${customContextNote}
+${previousEventsNote}
 
 Create a scenario with:
 1. A real but lesser-known historical leader who faced a genuine difficult choice
@@ -175,13 +183,14 @@ Only ONE choice should have isHistorical: true. All four choices should seem equ
     return { systemPrompt, userPrompt };
 }
 
-async function generateScenario({ era, previousLeaders, language, customEra, customContext, maxTokens }) {
+async function generateScenario({ era, previousLeaders, language, customEra, customContext, previousEventSummaries, maxTokens }) {
     const { systemPrompt, userPrompt } = buildScenarioPrompts({
         era,
         previousLeaders,
         language,
         customEra,
-        customContext
+        customContext,
+        previousEventSummaries
     });
 
     const responseText = await callDeepSeek(systemPrompt, userPrompt, {
@@ -226,15 +235,32 @@ async function prefillScenarioCache(era, language) {
 // Generate a new historical scenario
 app.post('/api/generate-scenario', async (req, res) => {
     try {
-        const { era = 'all', previousLeaders = [], language = 'en', customEra = '', customContext = '' } = req.body;
+        const {
+            era = 'all',
+            previousLeaders = [],
+            previousEventKeys = [],
+            previousEventSummaries = [],
+            language = 'en',
+            customEra = '',
+            customContext = ''
+        } = req.body;
         const hasCustomEra = typeof customEra === 'string' && customEra.trim().length > 0;
         const hasCustomContext = typeof customContext === 'string' && customContext.trim().length > 0;
+        const hasPreviousEvents = Array.isArray(previousEventKeys) && previousEventKeys.length > 0;
         const cacheKey = getScenarioCacheKey(era, language);
         const cacheList = getScenarioCacheList(cacheKey);
 
         let scenario = null;
         if (!hasCustomEra && !hasCustomContext && cacheList.length > 0) {
-            const index = cacheList.findIndex(item => !previousLeaders.includes(item.leader));
+            const index = cacheList.findIndex(item => {
+                if (previousLeaders.includes(item.leader)) {
+                    return false;
+                }
+                if (hasPreviousEvents) {
+                    return !previousEventKeys.includes(scenarioKey(item));
+                }
+                return true;
+            });
             if (index !== -1) {
                 scenario = cacheList.splice(index, 1)[0];
             }
@@ -246,7 +272,8 @@ app.post('/api/generate-scenario', async (req, res) => {
                 previousLeaders,
                 language,
                 customEra,
-                customContext
+                customContext,
+                previousEventSummaries
             });
         }
 
