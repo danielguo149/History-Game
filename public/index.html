@@ -598,8 +598,16 @@
                 <p>After each choice, discover what really happened &mdash; and what might have been.</p>
             </div>
 
+            <div class="language-selector">
+                <h2>Language / 语言</h2>
+                <div class="language-buttons" id="languageButtons">
+                    <button class="lang-btn selected" data-lang="en">English</button>
+                    <button class="lang-btn" data-lang="zh">中文</button>
+                </div>
+            </div>
+
             <div class="period-selector">
-                <h2>Choose Your Era</h2>
+                <h2 id="eraTitle">Choose Your Era</h2>
                 <div class="period-buttons" id="periodButtons">
                     <button class="period-btn selected" data-period="all">All Eras</button>
                     <button class="period-btn" data-period="ancient">Ancient World</button>
@@ -607,6 +615,10 @@
                     <button class="period-btn" data-period="renaissance">Renaissance</button>
                     <button class="period-btn" data-period="modern">Modern Era</button>
                     <button class="period-btn" data-period="contemporary">20th Century</button>
+                </div>
+                <div class="custom-era">
+                    <p id="customEraLabel">Or enter a custom time period:</p>
+                    <input type="text" id="customEraInput" class="custom-era-input" placeholder="e.g., Tang Dynasty China, Viking Age, Aztec Empire...">
                 </div>
             </div>
 
@@ -642,8 +654,111 @@
             totalRounds: 5,
             score: 0,
             previousLeaders: [],
-            history: []
+            history: [],
+            language: 'en'
         };
+
+        const i18n = {
+            en: {
+                languageTitle: 'Language',
+                eraTitle: 'Choose Your Era',
+                allEras: 'All Eras',
+                ancient: 'Ancient World',
+                medieval: 'Medieval',
+                renaissance: 'Renaissance',
+                modern: 'Modern Era',
+                contemporary: '20th Century',
+                customEraLabel: 'Or enter a custom time period:',
+                customEraPlaceholder: 'e.g., Tang Dynasty China, Viking Age, Aztec Empire...',
+                startButton: 'Begin Your Journey',
+                loadingScenario: 'Traveling through time...',
+                loadingOutcome: 'Unraveling the threads of history...',
+                connectionError: 'Connection Error',
+                scenarioError: 'Unable to generate scenario. Please check that the server is running and try again.',
+                outcomeError: 'Unable to generate outcome. Please try again.',
+                tryAgain: 'Try Again',
+                backToMenu: 'Back to Menu',
+                continue: 'Continue',
+                roundStatus: 'Round {current} of {total}',
+                scoreStatus: 'Score: {score}/{outOf}',
+                youChoseHistory: "You chose as history's pages record!",
+                youChoseDifferent: 'You forged a different path than history',
+                yourChoice: 'Your Choice',
+                whatActuallyHappened: 'What Actually Happened',
+                whatMightHaveBeen: 'What Might Have Been',
+                didYouKnow: 'Did You Know?',
+                lesson: 'The Lesson',
+                currentScore: 'Current Score',
+                nextChallenge: 'Next Challenge',
+                finalResults: 'See Final Results',
+                journeyComplete: 'Your Journey Complete',
+                matchedHistoryLabel: "You matched history's choices:",
+                leadersEncountered: 'Leaders Encountered',
+                matched: 'Matched',
+                different: 'Different',
+                playAgain: 'Play Again',
+                changeEra: 'Change Era',
+                verdict80: 'Master Historian! You think like the great leaders of the past.',
+                verdict60: "Keen Historical Mind! You have a strong sense for history's patterns.",
+                verdict40: 'Independent Thinker! You march to the beat of your own drum.',
+                verdict0: 'Revolutionary Spirit! Perhaps you would have changed history for the better.',
+                footer: 'Crossroads of History — Where every choice matters'
+            },
+            zh: {
+                languageTitle: '语言',
+                eraTitle: '选择时代',
+                allEras: '全部时代',
+                ancient: '古代世界',
+                medieval: '中世纪',
+                renaissance: '文艺复兴',
+                modern: '近代',
+                contemporary: '20世纪',
+                customEraLabel: '或输入自定义时代：',
+                customEraPlaceholder: '例如：唐朝中国、维京时代、阿兹特克帝国……',
+                startButton: '开始旅程',
+                loadingScenario: '穿越时空中...',
+                loadingOutcome: '编织历史的线索中...',
+                connectionError: '连接错误',
+                scenarioError: '无法生成情境。请确认服务器正在运行后再试。',
+                outcomeError: '无法生成结果。请再试一次。',
+                tryAgain: '重试',
+                backToMenu: '返回菜单',
+                continue: '继续',
+                roundStatus: '第 {current} 回合 / 共 {total} 回合',
+                scoreStatus: '得分：{score}/{outOf}',
+                youChoseHistory: '你的选择与历史一致！',
+                youChoseDifferent: '你走出了一条不同的历史道路',
+                yourChoice: '你的选择',
+                whatActuallyHappened: '真实历史',
+                whatMightHaveBeen: '另一种可能',
+                didYouKnow: '你知道吗？',
+                lesson: '启示',
+                currentScore: '当前得分',
+                nextChallenge: '下一挑战',
+                finalResults: '查看最终结果',
+                journeyComplete: '旅程完成',
+                matchedHistoryLabel: '你与历史一致的选择：',
+                leadersEncountered: '遇到的领袖',
+                matched: '一致',
+                different: '不同',
+                playAgain: '再玩一次',
+                changeEra: '更换时代',
+                verdict80: '历史大师！你像过去的伟大领袖一样思考。',
+                verdict60: '敏锐的历史感！你能把握历史的脉络。',
+                verdict40: '独立思想者！你坚持自己的道路。',
+                verdict0: '革命精神！也许你会让历史变得更好。',
+                footer: '历史的十字路口 — 每个选择都至关重要'
+            }
+        };
+
+        function t(key, variables = {}) {
+            const strings = i18n[gameState.language] || i18n.en;
+            let value = strings[key] || i18n.en[key] || '';
+            Object.entries(variables).forEach(([name, replacement]) => {
+                value = value.replace(`{${name}}`, replacement);
+            });
+            return value;
+        }
 
         // DOM Elements
         const screens = {
@@ -656,9 +771,20 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
+            applyLanguage(gameState.language);
         });
 
         function setupEventListeners() {
+            // Language selection
+            document.getElementById('languageButtons').addEventListener('click', (e) => {
+                if (e.target.classList.contains('lang-btn')) {
+                    document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('selected'));
+                    e.target.classList.add('selected');
+                    gameState.language = e.target.dataset.lang;
+                    applyLanguage(gameState.language);
+                }
+            });
+
             // Period selection
             document.getElementById('periodButtons').addEventListener('click', (e) => {
                 if (e.target.classList.contains('period-btn')) {
@@ -670,6 +796,30 @@
 
             // Start button
             document.getElementById('startBtn').addEventListener('click', startGame);
+        }
+
+        function applyLanguage(lang) {
+            const languageTitle = document.querySelector('.language-selector h2');
+            if (languageTitle) {
+                languageTitle.textContent = t('languageTitle');
+            }
+
+            document.getElementById('eraTitle').textContent = t('eraTitle');
+            document.querySelector('[data-period="all"]').textContent = t('allEras');
+            document.querySelector('[data-period="ancient"]').textContent = t('ancient');
+            document.querySelector('[data-period="medieval"]').textContent = t('medieval');
+            document.querySelector('[data-period="renaissance"]').textContent = t('renaissance');
+            document.querySelector('[data-period="modern"]').textContent = t('modern');
+            document.querySelector('[data-period="contemporary"]').textContent = t('contemporary');
+
+            document.getElementById('customEraLabel').textContent = t('customEraLabel');
+            document.getElementById('customEraInput').placeholder = t('customEraPlaceholder');
+            document.getElementById('startBtn').textContent = t('startButton');
+
+            const footer = document.querySelector('footer p');
+            if (footer) {
+                footer.textContent = t('footer');
+            }
         }
 
         function showScreen(screenName) {
@@ -693,25 +843,28 @@
             const gameContent = document.getElementById('gameContent');
             gameContent.innerHTML = `
                 <div class="progress-info">
-                    <span>Round ${gameState.roundNumber} of ${gameState.totalRounds}</span>
-                    <span>Score: ${gameState.score}/${gameState.roundNumber - 1}</span>
+                    <span>${t('roundStatus', { current: gameState.roundNumber, total: gameState.totalRounds })}</span>
+                    <span>${t('scoreStatus', { score: gameState.score, outOf: gameState.roundNumber - 1 })}</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${((gameState.roundNumber - 1) / gameState.totalRounds) * 100}%"></div>
                 </div>
                 <div class="loading">
                     <div class="loading-spinner"></div>
-                    <p class="loading-text">Traveling through time...</p>
+                    <p class="loading-text">${t('loadingScenario')}</p>
                 </div>
             `;
 
             try {
+                const customEra = document.getElementById('customEraInput').value.trim();
                 const response = await fetch('/api/generate-scenario', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         era: gameState.selectedEra,
-                        previousLeaders: gameState.previousLeaders
+                        previousLeaders: gameState.previousLeaders,
+                        language: gameState.language,
+                        customEra
                     })
                 });
 
@@ -729,10 +882,10 @@
                 console.error('Error:', error);
                 gameContent.innerHTML = `
                     <div class="error-message">
-                        <h3>Connection Error</h3>
-                        <p>Unable to generate scenario. Please check that the server is running and try again.</p>
-                        <button class="btn" onclick="loadNextScenario()">Try Again</button>
-                        <button class="btn" onclick="showScreen('intro')">Back to Menu</button>
+                        <h3>${t('connectionError')}</h3>
+                        <p>${t('scenarioError')}</p>
+                        <button class="btn" onclick="loadNextScenario()">${t('tryAgain')}</button>
+                        <button class="btn" onclick="showScreen('intro')">${t('backToMenu')}</button>
                     </div>
                 `;
             }
@@ -756,8 +909,8 @@
 
             gameContent.innerHTML = `
                 <div class="progress-info">
-                    <span>Round ${gameState.roundNumber} of ${gameState.totalRounds}</span>
-                    <span>Score: ${gameState.score}/${gameState.roundNumber - 1}</span>
+                    <span>${t('roundStatus', { current: gameState.roundNumber, total: gameState.totalRounds })}</span>
+                    <span>${t('scoreStatus', { score: gameState.score, outOf: gameState.roundNumber - 1 })}</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${((gameState.roundNumber - 1) / gameState.totalRounds) * 100}%"></div>
@@ -817,7 +970,7 @@
             document.getElementById('resultContent').innerHTML = `
                 <div class="loading">
                     <div class="loading-spinner"></div>
-                    <p class="loading-text">Unraveling the threads of history...</p>
+                    <p class="loading-text">${t('loadingOutcome')}</p>
                 </div>
             `;
 
@@ -828,7 +981,8 @@
                     body: JSON.stringify({
                         scenario: gameState.currentScenario,
                         playerChoice: playerChoice,
-                        isHistoricalChoice: isHistorical
+                        isHistoricalChoice: isHistorical,
+                        language: gameState.language
                     })
                 });
 
@@ -843,9 +997,9 @@
                 console.error('Error:', error);
                 document.getElementById('resultContent').innerHTML = `
                     <div class="error-message">
-                        <h3>Connection Error</h3>
-                        <p>Unable to generate outcome. Please try again.</p>
-                        <button class="btn" onclick="continueGame()">Continue</button>
+                        <h3>${t('connectionError')}</h3>
+                        <p>${t('outcomeError')}</p>
+                        <button class="btn" onclick="continueGame()">${t('continue')}</button>
                     </div>
                 `;
             }
@@ -861,44 +1015,44 @@
 
                     <div class="match-indicator ${isHistorical ? 'matched' : 'different'}">
                         ${isHistorical
-                            ? "You chose as history's pages record!"
-                            : "You forged a different path than history"}
+                            ? t('youChoseHistory')
+                            : t('youChoseDifferent')}
                     </div>
 
                     <div class="result-section your-choice">
-                        <h3 class="section-title">Your Choice</h3>
+                        <h3 class="section-title">${t('yourChoice')}</h3>
                         <p>${playerChoice}</p>
                     </div>
 
                     <div class="result-section historical-choice">
-                        <h3 class="section-title">What Actually Happened</h3>
+                        <h3 class="section-title">${t('whatActuallyHappened')}</h3>
                         <p>${outcome.whatActuallyHappened}</p>
                     </div>
 
                     <div class="result-section alternate-history">
-                        <h3 class="section-title">What Might Have Been</h3>
+                        <h3 class="section-title">${t('whatMightHaveBeen')}</h3>
                         <p>${outcome.alternateHistory}</p>
                     </div>
 
                     <div class="result-section fun-fact">
-                        <h3 class="section-title">Did You Know?</h3>
+                        <h3 class="section-title">${t('didYouKnow')}</h3>
                         <p>${outcome.funFact}</p>
                     </div>
 
                     <div class="result-section lesson">
-                        <h3 class="section-title">The Lesson</h3>
+                        <h3 class="section-title">${t('lesson')}</h3>
                         <p>${outcome.lessonsLearned}</p>
                     </div>
 
                     <div class="score-display">
-                        <h3>Current Score</h3>
+                        <h3>${t('currentScore')}</h3>
                         <span class="score-number">${gameState.score} / ${gameState.roundNumber}</span>
                     </div>
 
                     <div class="button-container">
                         ${gameState.roundNumber < gameState.totalRounds
-                            ? `<button class="btn" onclick="continueGame()">Next Challenge</button>`
-                            : `<button class="btn" onclick="showFinalResults()">See Final Results</button>`
+                            ? `<button class="btn" onclick="continueGame()">${t('nextChallenge')}</button>`
+                            : `<button class="btn" onclick="showFinalResults()">${t('finalResults')}</button>`
                         }
                     </div>
                 </div>
@@ -917,37 +1071,37 @@
             let verdict, verdictClass;
 
             if (percentage >= 80) {
-                verdict = "Master Historian! You think like the great leaders of the past.";
+                verdict = t('verdict80');
             } else if (percentage >= 60) {
-                verdict = "Keen Historical Mind! You have a strong sense for history's patterns.";
+                verdict = t('verdict60');
             } else if (percentage >= 40) {
-                verdict = "Independent Thinker! You march to the beat of your own drum.";
+                verdict = t('verdict40');
             } else {
-                verdict = "Revolutionary Spirit! Perhaps you would have changed history for the better.";
+                verdict = t('verdict0');
             }
 
             document.getElementById('finalContent').innerHTML = `
                 <div class="final-screen">
-                    <h2 style="font-family: 'Cinzel', serif; color: #d4af37; margin-bottom: 10px;">Your Journey Complete</h2>
-                    <p class="subtitle">You matched history's choices:</p>
+                    <h2 style="font-family: 'Cinzel', serif; color: #d4af37; margin-bottom: 10px;">${t('journeyComplete')}</h2>
+                    <p class="subtitle">${t('matchedHistoryLabel')}</p>
                     <div class="final-score">${gameState.score} / ${gameState.totalRounds}</div>
                     <div class="verdict">${verdict}</div>
 
                     <div class="leaders-list">
-                        <h3>Leaders Encountered</h3>
+                        <h3>${t('leadersEncountered')}</h3>
                         ${gameState.history.map(h => `
                             <div class="leader-item">
                                 <span>${h.leader}</span>
                                 <span class="${h.matched ? 'match-icon' : 'diff-icon'}">
-                                    ${h.matched ? '&#10003; Matched' : '&#10007; Different'}
+                                    ${h.matched ? `&#10003; ${t('matched')}` : `&#10007; ${t('different')}`}
                                 </span>
                             </div>
                         `).join('')}
                     </div>
 
                     <div class="button-container">
-                        <button class="btn" onclick="startGame()">Play Again</button>
-                        <button class="btn" onclick="showScreen('intro')">Change Era</button>
+                        <button class="btn" onclick="startGame()">${t('playAgain')}</button>
+                        <button class="btn" onclick="showScreen('intro')">${t('changeEra')}</button>
                     </div>
                 </div>
             `;

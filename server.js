@@ -12,9 +12,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
+const SCENARIO_CACHE_SIZE = 6;
+const scenarioCache = new Map();
+const scenarioPrefillInFlight = new Map();
+
 // DeepSeek API call function (OpenAI-compatible)
-async function callDeepSeek(systemPrompt, userPrompt) {
+async function callDeepSeek(systemPrompt, userPrompt, options = {}) {
     console.log('Calling DeepSeek API...');
+    const { maxTokens = 1200, temperature = 0.8 } = options;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
@@ -28,8 +33,8 @@ async function callDeepSeek(systemPrompt, userPrompt) {
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt }
             ],
-            temperature: 0.9,
-            max_tokens: 2000
+            temperature,
+            max_tokens: maxTokens
         })
     });
 
@@ -63,38 +68,68 @@ function parseAIResponse(responseText) {
     if (text.endsWith('```')) {
         text = text.slice(0, -3);
     }
-    return JSON.parse(text.trim());
+    try {
+        return JSON.parse(text.trim());
+    } catch (error) {
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start !== -1 && end !== -1 && end > start) {
+            return JSON.parse(text.slice(start, end + 1));
+        }
+        throw error;
+    }
 }
 
-// Generate a new historical scenario
-app.post('/api/generate-scenario', async (req, res) => {
-    try {
-        const { era, previousLeaders = [] } = req.body;
+function getScenarioCacheKey(era, language) {
+    return `${era || 'all'}::${language || 'en'}`;
+}
 
-        const eraPrompts = {
-            all: "any time period from ancient history to the 20th century",
-            ancient: "the ancient world (3000 BCE - 500 CE), such as Egypt, Greece, Rome, Persia, or China",
-            medieval: "the medieval period (500 CE - 1400 CE), including the Byzantine Empire, Islamic Golden Age, Crusades, or feudal Europe/Asia",
-            renaissance: "the Renaissance and Early Modern period (1400 - 1700), including the Age of Exploration, Reformation, and Scientific Revolution",
-            modern: "the Modern era (1700 - 1900), including revolutions, colonialism, and nation-building",
-            contemporary: "the 20th century (1900 - 2000), including world wars, cold war, civil rights movements, and decolonization"
-        };
+function getScenarioCacheList(key) {
+    if (!scenarioCache.has(key)) {
+        scenarioCache.set(key, []);
+    }
+    return scenarioCache.get(key);
+}
 
-        const excludeList = previousLeaders.length > 0
-            ? `Do NOT use any of these leaders who have already appeared: ${previousLeaders.join(', ')}.`
-            : '';
+function resolveEraDescription(era, customEra) {
+    const eraPrompts = {
+        all: "any time period from ancient history to the 20th century",
+        ancient: "the ancient world (3000 BCE - 500 CE), such as Egypt, Greece, Rome, Persia, or China",
+        medieval: "the medieval period (500 CE - 1400 CE), including the Byzantine Empire, Islamic Golden Age, Crusades, or feudal Europe/Asia",
+        renaissance: "the Renaissance and Early Modern period (1400 - 1700), including the Age of Exploration, Reformation, and Scientific Revolution",
+        modern: "the Modern era (1700 - 1900), including revolutions, colonialism, and nation-building",
+        contemporary: "the 20th century (1900 - 2000), including world wars, cold war, civil rights movements, and decolonization"
+    };
 
-        const systemPrompt = "You are a brilliant historian specializing in lesser-known but pivotal moments in history. You always respond with valid JSON only, no markdown formatting or extra text.";
+    if (customEra && customEra.trim()) {
+        return customEra.trim();
+    }
 
-        const userPrompt = `You are a historical expert creating an educational game. Generate a historically accurate and dramatic scenario about a real historical leader facing a critical decision.
+    return eraPrompts[era] || eraPrompts.all;
+}
+
+function buildScenarioPrompts({ era, previousLeaders, language, customEra }) {
+    const eraDescription = resolveEraDescription(era, customEra);
+    const excludeList = previousLeaders.length > 0
+        ? `Do NOT use any of these leaders who have already appeared: ${previousLeaders.join(', ')}.`
+        : '';
+
+    const languageNote = language === 'zh'
+        ? 'All string values must be written in Simplified Chinese. Keep JSON keys and booleans in English.'
+        : 'All string values must be written in English. Keep JSON keys and booleans in English.';
+
+    const systemPrompt = "You are a brilliant historian specializing in lesser-known but pivotal moments in history. You always respond with valid JSON only, no markdown formatting or extra text.";
+
+    const userPrompt = `You are a historical expert creating an educational game. Generate a historically accurate and dramatic scenario about a real historical leader facing a critical decision.
 
 IMPORTANT REQUIREMENTS:
 - Choose OBSCURE or lesser-known historical figures and events - AVOID famous stories like Caesar crossing the Rubicon, Washington crossing the Delaware, Churchill during WWII, etc.
 - Pick moments that are historically significant but not commonly taught in schools
 - The correct choice should NOT be obvious - all 4 options should seem equally reasonable
 
-Time Period: ${eraPrompts[era] || eraPrompts.all}
+Time Period: ${eraDescription}
 ${excludeList}
+${languageNote}
 
 Create a scenario with:
 1. A real but lesser-known historical leader who faced a genuine difficult choice
@@ -132,8 +167,87 @@ Respond in this exact JSON format:
 
 Only ONE choice should have isHistorical: true. All four choices should seem equally reasonable given the circumstances - make it genuinely difficult to guess which one is correct!`;
 
-        const responseText = await callDeepSeek(systemPrompt, userPrompt);
-        const scenario = parseAIResponse(responseText);
+    return { systemPrompt, userPrompt };
+}
+
+async function generateScenario({ era, previousLeaders, language, customEra, maxTokens }) {
+    const { systemPrompt, userPrompt } = buildScenarioPrompts({
+        era,
+        previousLeaders,
+        language,
+        customEra
+    });
+
+    const responseText = await callDeepSeek(systemPrompt, userPrompt, {
+        maxTokens: maxTokens || 900,
+        temperature: 0.8
+    });
+
+    return parseAIResponse(responseText);
+}
+
+async function prefillScenarioCache(era, language) {
+    const cacheKey = getScenarioCacheKey(era, language);
+    const cacheList = getScenarioCacheList(cacheKey);
+    const inFlight = scenarioPrefillInFlight.get(cacheKey) || 0;
+
+    if (cacheList.length >= SCENARIO_CACHE_SIZE || inFlight > 0) {
+        return;
+    }
+
+    scenarioPrefillInFlight.set(cacheKey, inFlight + 1);
+    try {
+        const scenario = await generateScenario({
+            era,
+            previousLeaders: [],
+            language,
+            customEra: null,
+            maxTokens: 900
+        });
+        cacheList.push(scenario);
+    } catch (error) {
+        console.warn('Scenario prefill failed:', error.message);
+    } finally {
+        const remaining = (scenarioPrefillInFlight.get(cacheKey) || 1) - 1;
+        if (remaining <= 0) {
+            scenarioPrefillInFlight.delete(cacheKey);
+        } else {
+            scenarioPrefillInFlight.set(cacheKey, remaining);
+        }
+    }
+}
+
+// Generate a new historical scenario
+app.post('/api/generate-scenario', async (req, res) => {
+    try {
+        const { era = 'all', previousLeaders = [], language = 'en', customEra = '' } = req.body;
+        const hasCustomEra = typeof customEra === 'string' && customEra.trim().length > 0;
+        const cacheKey = getScenarioCacheKey(era, language);
+        const cacheList = getScenarioCacheList(cacheKey);
+
+        let scenario = null;
+        if (!hasCustomEra && cacheList.length > 0) {
+            const index = cacheList.findIndex(item => !previousLeaders.includes(item.leader));
+            if (index !== -1) {
+                scenario = cacheList.splice(index, 1)[0];
+            }
+        }
+
+        if (!scenario) {
+            scenario = await generateScenario({
+                era,
+                previousLeaders,
+                language,
+                customEra
+            });
+        }
+
+        if (!hasCustomEra) {
+            setImmediate(() => {
+                prefillScenarioCache(era, language);
+            });
+        }
+
         res.json(scenario);
 
     } catch (error) {
@@ -148,9 +262,12 @@ Only ONE choice should have isHistorical: true. All four choices should seem equ
 // Generate outcome based on player's choice
 app.post('/api/generate-outcome', async (req, res) => {
     try {
-        const { scenario, playerChoice, isHistoricalChoice } = req.body;
+        const { scenario, playerChoice, isHistoricalChoice, language = 'en' } = req.body;
 
         const systemPrompt = "You are a brilliant historian specializing in counterfactual history. You always respond with valid JSON only, no markdown formatting or extra text.";
+        const languageNote = language === 'zh'
+            ? 'All string values must be written in Simplified Chinese. Keep JSON keys and booleans in English.'
+            : 'All string values must be written in English. Keep JSON keys and booleans in English.';
 
         const userPrompt = `You are a historical expert. A player is playing a history game where they made a choice as ${scenario.leader}.
 
@@ -165,6 +282,7 @@ THE PLAYER CHOSE: "${playerChoice}"
 This ${isHistoricalChoice ? 'IS' : 'is NOT'} what ${scenario.leader} actually chose historically.
 
 Historical fact: ${scenario.historicalFact}
+${languageNote}
 
 Generate a response in this exact JSON format:
 {
@@ -177,7 +295,10 @@ Generate a response in this exact JSON format:
 
 Make both outcomes engaging and educational. The alternate history should be plausible based on the actual historical circumstances.`;
 
-        const responseText = await callDeepSeek(systemPrompt, userPrompt);
+        const responseText = await callDeepSeek(systemPrompt, userPrompt, {
+            maxTokens: 1400,
+            temperature: 0.8
+        });
         const outcome = parseAIResponse(responseText);
         res.json(outcome);
 
