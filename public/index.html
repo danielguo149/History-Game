@@ -669,18 +669,18 @@
 <body>
     <div class="container">
         <header>
-            <h1>Crossroads of History</h1>
-            <p class="subtitle">Walk in the footsteps of legends. Make the choices that shaped our world.</p>
+            <h1 id="titleText">Crossroads of History</h1>
+            <p class="subtitle" id="subtitleText">Walk in the footsteps of legends. Make the choices that shaped our world.</p>
         </header>
 
         <!-- Intro Screen -->
         <div class="screen active" id="introScreen">
             <div class="intro-text">
-                <p>Throughout history, leaders have faced impossible choices &mdash; decisions that would echo through centuries and reshape the fate of nations.</p>
+                <p id="introLine1">Throughout history, leaders have faced impossible choices &mdash; decisions that would echo through centuries and reshape the fate of nations.</p>
                 <br>
-                <p>Now, <strong>you</strong> stand at these crossroads. Will you choose as they did? Or forge a different path?</p>
+                <p id="introLine2">Now, <strong>you</strong> stand at these crossroads. Will you choose as they did? Or forge a different path?</p>
                 <br>
-                <p>After each choice, discover what really happened &mdash; and what might have been.</p>
+                <p id="introLine3">After each choice, discover what really happened &mdash; and what might have been.</p>
             </div>
 
             <div class="language-selector">
@@ -752,6 +752,11 @@
 
         const i18n = {
             en: {
+                titleText: 'Crossroads of History',
+                subtitleText: 'Walk in the footsteps of legends. Make the choices that shaped our world.',
+                introLine1: 'Throughout history, leaders have faced impossible choices — decisions that would echo through centuries and reshape the fate of nations.',
+                introLine2: 'Now, <strong>you</strong> stand at these crossroads. Will you choose as they did? Or forge a different path?',
+                introLine3: 'After each choice, discover what really happened — and what might have been.',
                 languageTitle: 'Language',
                 eraTitle: 'Choose Your Era',
                 allEras: 'All Eras',
@@ -800,6 +805,11 @@
                 footer: 'Crossroads of History — Where every choice matters'
             },
             zh: {
+                titleText: '历史的十字路口',
+                subtitleText: '追随传奇的足迹，做出改变世界的抉择。',
+                introLine1: '纵观历史，领袖们曾面对艰难抉择——这些决定会回响数百年，重塑国家命运。',
+                introLine2: '如今，<strong>你</strong>站在十字路口。你会做出同样的选择，还是开辟另一条道路？',
+                introLine3: '每次选择之后，了解真实历史——以及另一种可能。',
                 languageTitle: '语言',
                 eraTitle: '选择时代',
                 allEras: '全部时代',
@@ -889,6 +899,27 @@
                     document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('selected'));
                     e.target.classList.add('selected');
                     gameState.selectedEra = e.target.dataset.period;
+                    document.getElementById('customEraInput').value = '';
+                    document.getElementById('customContextInput').value = '';
+                }
+            });
+
+            const customEraInput = document.getElementById('customEraInput');
+            const customContextInput = document.getElementById('customContextInput');
+
+            function clearPeriodSelection() {
+                document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('selected'));
+            }
+
+            customEraInput.addEventListener('input', () => {
+                if (customEraInput.value.trim().length > 0) {
+                    clearPeriodSelection();
+                }
+            });
+
+            customContextInput.addEventListener('input', () => {
+                if (customContextInput.value.trim().length > 0) {
+                    clearPeriodSelection();
                 }
             });
 
@@ -897,6 +928,11 @@
         }
 
         function applyLanguage(lang) {
+            document.getElementById('titleText').textContent = t('titleText');
+            document.getElementById('subtitleText').textContent = t('subtitleText');
+            document.getElementById('introLine1').innerHTML = t('introLine1');
+            document.getElementById('introLine2').innerHTML = t('introLine2');
+            document.getElementById('introLine3').innerHTML = t('introLine3');
             const languageTitle = document.querySelector('.language-selector h2');
             if (languageTitle) {
                 languageTitle.textContent = t('languageTitle');
