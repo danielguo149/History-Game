@@ -655,7 +655,12 @@
             score: 0,
             previousLeaders: [],
             history: [],
-            language: 'en'
+            language: 'en',
+            scenarioToken: 0,
+            outcomeCache: null,
+            prefetchedScenario: null,
+            prefetchedScenarioPromise: null,
+            prefetchedScenarioSignature: ''
         };
 
         const i18n = {
@@ -827,11 +832,34 @@
             screens[screenName].classList.add('active');
         }
 
+        function normalizeChoiceKey(text) {
+            return text.trim();
+        }
+
+        function buildScenarioSignature() {
+            const customEra = document.getElementById('customEraInput').value.trim();
+            return [
+                gameState.selectedEra,
+                gameState.language,
+                customEra,
+                gameState.previousLeaders.join(',')
+            ].join('||');
+        }
+
+        function resetPrefetchState() {
+            gameState.outcomeCache = null;
+            gameState.prefetchedScenario = null;
+            gameState.prefetchedScenarioPromise = null;
+            gameState.prefetchedScenarioSignature = '';
+        }
+
         async function startGame() {
             gameState.roundNumber = 0;
             gameState.score = 0;
             gameState.previousLeaders = [];
             gameState.history = [];
+            gameState.scenarioToken = 0;
+            resetPrefetchState();
 
             showScreen('game');
             await loadNextScenario();
@@ -857,25 +885,42 @@
 
             try {
                 const customEra = document.getElementById('customEraInput').value.trim();
-                const response = await fetch('/api/generate-scenario', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        era: gameState.selectedEra,
-                        previousLeaders: gameState.previousLeaders,
-                        language: gameState.language,
-                        customEra
-                    })
-                });
+                const signature = buildScenarioSignature();
+                let scenario = null;
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.details || 'Failed to generate scenario');
+                if (gameState.prefetchedScenario && gameState.prefetchedScenarioSignature === signature) {
+                    scenario = gameState.prefetchedScenario;
+                } else if (gameState.prefetchedScenarioPromise && gameState.prefetchedScenarioSignature === signature) {
+                    scenario = await gameState.prefetchedScenarioPromise;
                 }
 
-                const scenario = await response.json();
+                if (!scenario) {
+                    const response = await fetch('/api/generate-scenario', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            era: gameState.selectedEra,
+                            previousLeaders: gameState.previousLeaders,
+                            language: gameState.language,
+                            customEra
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.details || 'Failed to generate scenario');
+                    }
+
+                    scenario = await response.json();
+                }
+
+                gameState.prefetchedScenario = null;
+                gameState.prefetchedScenarioPromise = null;
+                gameState.prefetchedScenarioSignature = '';
                 gameState.currentScenario = scenario;
                 gameState.previousLeaders.push(scenario.leader);
+                gameState.scenarioToken += 1;
+                gameState.outcomeCache = new Map();
 
                 displayScenario(scenario);
             } catch (error) {
@@ -935,6 +980,98 @@
             document.querySelectorAll('.choice-btn').forEach(btn => {
                 btn.addEventListener('click', () => handleChoice(btn));
             });
+
+            prefetchOutcomes(scenario, choices);
+            queueScenarioPrefetch();
+        }
+
+        function queueScenarioPrefetch() {
+            if (gameState.roundNumber >= gameState.totalRounds) {
+                return;
+            }
+
+            if (gameState.prefetchedScenarioPromise || gameState.prefetchedScenario) {
+                return;
+            }
+
+            const customEra = document.getElementById('customEraInput').value.trim();
+            const signature = buildScenarioSignature();
+            gameState.prefetchedScenarioSignature = signature;
+
+            gameState.prefetchedScenarioPromise = fetch('/api/generate-scenario', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    era: gameState.selectedEra,
+                    previousLeaders: gameState.previousLeaders,
+                    language: gameState.language,
+                    customEra
+                })
+            }).then(async (response) => {
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.details || 'Failed to generate scenario');
+                }
+                return response.json();
+            }).then((scenario) => {
+                if (gameState.prefetchedScenarioSignature !== signature) {
+                    return null;
+                }
+                gameState.prefetchedScenario = scenario;
+                return scenario;
+            }).catch((error) => {
+                console.warn('Scenario prefetch failed:', error.message);
+                if (gameState.prefetchedScenarioSignature === signature) {
+                    gameState.prefetchedScenarioPromise = null;
+                }
+                return null;
+            });
+        }
+
+        function prefetchOutcomes(scenario, choices) {
+            const token = gameState.scenarioToken;
+            const cache = gameState.outcomeCache;
+            if (!cache) {
+                return;
+            }
+
+            choices.forEach(choice => {
+                const choiceKey = normalizeChoiceKey(choice.text);
+                if (cache.has(choiceKey)) {
+                    return;
+                }
+
+                const promise = fetch('/api/generate-outcome', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scenario,
+                        playerChoice: choice.text,
+                        isHistoricalChoice: choice.isHistorical,
+                        language: gameState.language
+                    })
+                }).then(async (response) => {
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.details || 'Failed to generate outcome');
+                    }
+                    return response.json();
+                }).then((outcome) => {
+                    if (gameState.scenarioToken !== token || !gameState.outcomeCache) {
+                        return null;
+                    }
+                    const entry = gameState.outcomeCache.get(choiceKey);
+                    if (entry) {
+                        entry.result = outcome;
+                    }
+                    return outcome;
+                }).catch((error) => {
+                    console.warn('Outcome prefetch failed:', error.message);
+                    return null;
+                });
+
+                cache.set(choiceKey, { promise });
+            });
         }
 
         async function handleChoice(button) {
@@ -975,23 +1112,38 @@
             `;
 
             try {
-                const response = await fetch('/api/generate-outcome', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        scenario: gameState.currentScenario,
-                        playerChoice: playerChoice,
-                        isHistoricalChoice: isHistorical,
-                        language: gameState.language
-                    })
-                });
+                let outcome = null;
+                const choiceKey = normalizeChoiceKey(playerChoice);
+                const cached = gameState.outcomeCache ? gameState.outcomeCache.get(choiceKey) : null;
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.details || 'Failed to generate outcome');
+                if (cached) {
+                    try {
+                        outcome = cached.result || await cached.promise;
+                    } catch (error) {
+                        console.warn('Cached outcome failed, retrying:', error.message);
+                        outcome = null;
+                    }
                 }
 
-                const outcome = await response.json();
+                if (!outcome) {
+                    const response = await fetch('/api/generate-outcome', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            scenario: gameState.currentScenario,
+                            playerChoice: playerChoice,
+                            isHistoricalChoice: isHistorical,
+                            language: gameState.language
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.details || 'Failed to generate outcome');
+                    }
+
+                    outcome = await response.json();
+                }
                 displayOutcome(outcome, playerChoice, isHistorical);
             } catch (error) {
                 console.error('Error:', error);
