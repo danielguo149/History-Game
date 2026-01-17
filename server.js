@@ -20,7 +20,7 @@ const scenarioPrefillInFlight = new Map();
 // DeepSeek API call function (OpenAI-compatible)
 async function callDeepSeek(systemPrompt, userPrompt, options = {}) {
     console.log('Calling DeepSeek API...');
-    const { maxTokens = 1200, temperature = 0.8 } = options;
+    const { maxTokens = 900, temperature = 0.7 } = options;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
         method: 'POST',
@@ -134,7 +134,7 @@ ${languageNote}
 
 Create a scenario with:
 1. A real but lesser-known historical leader who faced a genuine difficult choice
-2. Accurate historical context leading up to the decision (1-2 paragraphs, not too complicated)
+2. Accurate historical context leading up to the decision (1 paragraph, concise and engaging)
 3. FOUR distinct choices they could have made - all should seem plausible
 4. The scenario should be dramatic, engaging, and teach something surprising about history
 
@@ -143,7 +143,7 @@ Respond in this exact JSON format:
     "era": "specific year and location",
     "leader": "full name of the historical figure",
     "title": "their title/position at the time",
-    "context": "1-2 paragraphs of vivid, accurate historical context setting up the dilemma (make it dramatic and engaging)",
+    "context": "1 concise paragraph of vivid, accurate historical context setting up the dilemma (make it dramatic and engaging)",
     "dilemma": "a single compelling question presenting the choice",
     "choices": [
         {
@@ -163,7 +163,7 @@ Respond in this exact JSON format:
             "isHistorical": true or false
         }
     ],
-    "historicalFact": "what actually happened and why it mattered in 2-3 sentences"
+    "historicalFact": "what actually happened and why it mattered in 1-2 sentences"
 }
 
 Only ONE choice should have isHistorical: true. All four choices should seem equally reasonable given the circumstances - make it genuinely difficult to guess which one is correct!`;
@@ -180,8 +180,8 @@ async function generateScenario({ era, previousLeaders, language, customEra, max
     });
 
     const responseText = await callDeepSeek(systemPrompt, userPrompt, {
-        maxTokens: maxTokens || 900,
-        temperature: 0.8
+        maxTokens: maxTokens || 700,
+        temperature: 0.7
     });
 
     return parseAIResponse(responseText);
@@ -288,8 +288,8 @@ ${languageNote}
 Generate a response in this exact JSON format:
 {
     "matchedHistory": ${isHistoricalChoice},
-    "whatActuallyHappened": "1-2 paragraphs describing what ${scenario.leader} actually did and the real historical consequences - make it vivid and interesting",
-    "alternateHistory": "1-2 paragraphs of plausible alternate history - what likely would have happened if the ${isHistoricalChoice ? 'other choice' : "player's choice"} had been made. Be specific about potential consequences, consider butterfly effects, and make it thought-provoking",
+    "whatActuallyHappened": "1 concise paragraph describing what ${scenario.leader} actually did and the real historical consequences - make it vivid and interesting",
+    "alternateHistory": "1 concise paragraph of plausible alternate history - what likely would have happened if the ${isHistoricalChoice ? 'other choice' : "player's choice"} had been made. Be specific about potential consequences, consider butterfly effects, and make it thought-provoking",
     "funFact": "one fascinating lesser-known fact about this historical moment or person",
     "lessonsLearned": "what this moment teaches us about leadership, decision-making, or human nature. Make sure it's not too complicated."
 }
@@ -297,8 +297,8 @@ Generate a response in this exact JSON format:
 Make both outcomes engaging and educational. The alternate history should be plausible based on the actual historical circumstances.`;
 
         const responseText = await callDeepSeek(systemPrompt, userPrompt, {
-            maxTokens: 1400,
-            temperature: 0.8
+            maxTokens: 950,
+            temperature: 0.7
         });
         const outcome = parseAIResponse(responseText);
         res.json(outcome);
