@@ -109,10 +109,13 @@ function resolveEraDescription(era, customEra) {
     return eraPrompts[era] || eraPrompts.all;
 }
 
-function buildScenarioPrompts({ era, previousLeaders, language, customEra }) {
+function buildScenarioPrompts({ era, previousLeaders, language, customEra, customContext }) {
     const eraDescription = resolveEraDescription(era, customEra);
     const excludeList = previousLeaders.length > 0
         ? `Do NOT use any of these leaders who have already appeared: ${previousLeaders.join(', ')}.`
+        : '';
+    const customContextNote = customContext && customContext.trim()
+        ? `Player-provided historical context to weave in: ${customContext.trim()}`
         : '';
 
     const languageNote = language === 'zh'
@@ -131,6 +134,7 @@ IMPORTANT REQUIREMENTS:
 Time Period: ${eraDescription}
 ${excludeList}
 ${languageNote}
+${customContextNote}
 
 Create a scenario with:
 1. A real but lesser-known historical leader who faced a genuine difficult choice
@@ -171,12 +175,13 @@ Only ONE choice should have isHistorical: true. All four choices should seem equ
     return { systemPrompt, userPrompt };
 }
 
-async function generateScenario({ era, previousLeaders, language, customEra, maxTokens }) {
+async function generateScenario({ era, previousLeaders, language, customEra, customContext, maxTokens }) {
     const { systemPrompt, userPrompt } = buildScenarioPrompts({
         era,
         previousLeaders,
         language,
-        customEra
+        customEra,
+        customContext
     });
 
     const responseText = await callDeepSeek(systemPrompt, userPrompt, {
@@ -221,13 +226,14 @@ async function prefillScenarioCache(era, language) {
 // Generate a new historical scenario
 app.post('/api/generate-scenario', async (req, res) => {
     try {
-        const { era = 'all', previousLeaders = [], language = 'en', customEra = '' } = req.body;
+        const { era = 'all', previousLeaders = [], language = 'en', customEra = '', customContext = '' } = req.body;
         const hasCustomEra = typeof customEra === 'string' && customEra.trim().length > 0;
+        const hasCustomContext = typeof customContext === 'string' && customContext.trim().length > 0;
         const cacheKey = getScenarioCacheKey(era, language);
         const cacheList = getScenarioCacheList(cacheKey);
 
         let scenario = null;
-        if (!hasCustomEra && cacheList.length > 0) {
+        if (!hasCustomEra && !hasCustomContext && cacheList.length > 0) {
             const index = cacheList.findIndex(item => !previousLeaders.includes(item.leader));
             if (index !== -1) {
                 scenario = cacheList.splice(index, 1)[0];
@@ -239,11 +245,12 @@ app.post('/api/generate-scenario', async (req, res) => {
                 era,
                 previousLeaders,
                 language,
-                customEra
+                customEra,
+                customContext
             });
         }
 
-        if (!hasCustomEra) {
+        if (!hasCustomEra && !hasCustomContext) {
             setImmediate(() => {
                 prefillScenarioCache(era, language);
             });
